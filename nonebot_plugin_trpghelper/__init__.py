@@ -434,14 +434,14 @@ async def _(time: str, state: T_State):
     if DateCheckResult.OK not in result[0] or result[1] is None:
         error_list = [r.value for r in result[0]]
         missing = "\n".join(error_list)
-        await UniMessage.text(reply["date_missing_sth"].format(
+        await add_bc.reject(UniMessage.text(reply["date_missing_sth"].format(
             missing=missing
-            )).finish()
+            )))
 
     if days_from_now(result[1]) > days_limit:
-        await UniMessage.text(reply["time_too_long"].format(
+        await add_bc.reject(UniMessage.text(reply["time_too_long"].format(
             limit=days_limit
-            )).finish()
+            )))
 
     state["time"] = result[1]
 
@@ -1065,7 +1065,7 @@ async def _(
     await UniMessage.text(reply["update_success"]).finish()
 
 #------
-# 这里引入一些不应被公开的api
+# 这里引入一些不应被的api
 #------
 __all__ = ["unfinished"]
 
