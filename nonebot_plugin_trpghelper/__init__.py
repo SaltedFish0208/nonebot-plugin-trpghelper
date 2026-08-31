@@ -1,10 +1,8 @@
-import random
 from datetime import datetime, timedelta
 from typing import Optional
 
 import nonebot_plugin_localstore as storage
 import shortuuid
-from anyio import Path
 from nonebot import exception, get_plugin_config, require
 from nonebot.permission import SUPERUSER
 from nonebot.plugin import PluginMetadata
@@ -16,6 +14,8 @@ from sqlalchemy.orm import selectinload
 
 require("nonebot_plugin_access_control_api")
 require("nonebot_plugin_alconna")
+
+import contextlib
 
 from arclet.alconna import AllParam, CommandMeta
 from nonebot.adapters.onebot.v11 import (
@@ -40,7 +40,7 @@ from nonebot_plugin_alconna import (
 from .conf_init import reply_generator
 from .config import Config
 from .db_encap import get_rule
-from .model import Broadcast, Group, InspirationCount, LearnCount, Post, Rule, RuleAlias
+from .model import Broadcast, Group, Post, Rule, RuleAlias
 from .to_pic import (
     from_html_to_pic,
     from_html_to_pic_for_group,
@@ -1064,187 +1064,10 @@ async def _(
     await session.commit()
     await UniMessage.text(reply["update_success"]).finish()
 
-
 #------
-# 配置内容
+# 这里引入一些不应被公开的api
 #------
-LEARN_IMG_DIR = Path("./learn")
-INSPIRATION_IMG_DIR = Path("./inspiration")
+__all__ = ["unfinished"]
 
-#------
-# 灵感内容
-#------
-inspiration_pic = on_alconna(
-    Alconna(
-        "灵感",
-        Args["name?", Optional[int]]
-    )
-)
-inspiration_service = plugin_service.create_subservice("inspiration_pic")
-
-@inspiration_pic.handle()
-@inspiration_service.patch_handler()
-async def _(name: Optional[int]):
-    if name is None:
-        files = [
-            p async for p in INSPIRATION_IMG_DIR.iterdir()
-            if await p.is_file()
-            ]
-        count = len(files)
-        await UniMessage.text(reply["count_tip"].format(count=count)).finish()
-    else:
-        img_png = INSPIRATION_IMG_DIR / f"{name}.png"
-        img_jpg = INSPIRATION_IMG_DIR / f"{name}.jpg"
-        img_path = None
-        if await img_png.exists():
-            img_path = img_png
-        if await img_jpg.exists():
-            img_path = img_jpg
-
-        if img_path is None:
-            await UniMessage.text(reply["file_not_found"].format(file=name)).finish()
-        else:
-            await (
-                UniMessage
-                .text(reply["you_are_looking_at"].format(file=name))
-                .image(path=str(img_path))
-                ).finish()
-
-everyday_inspiration = on_alconna(
-    Alconna(
-        "今日灵感"
-    )
-)
-everyday_inspiration_service = plugin_service.create_subservice("everyday_inspiration")
-
-@everyday_inspiration.handle()
-@everyday_inspiration_service.patch_handler()
-async def _(event: MessageEvent, session: async_scoped_session):
-    targets = (await session.scalars(
-        select(InspirationCount)
-        .where(InspirationCount.user_id == str(event.user_id))
-    )).first()
-    if targets is None:
-        files = [
-            p async for p in INSPIRATION_IMG_DIR.iterdir()
-            if await p.is_file()
-            ]
-        pic = random.choice(files)
-        new_records = InspirationCount()
-        new_records.user_id = str(event.user_id)
-        new_records.last_request = datetime.now(BJ_TZ)
-        new_records.last_pic = str(pic)
-        session.add(new_records)
-        await session.commit()
-        await (UniMessage
-            .text(reply["you_are_looking_at"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
-    if targets.last_request.date() < datetime.now(BJ_TZ).date():
-        files = [
-            p async for p in INSPIRATION_IMG_DIR.iterdir()
-            if p.is_file()
-            ]
-        pic = random.choice(files)
-        targets.last_pic = str(pic)
-        targets.last_request = datetime.now(BJ_TZ)
-        await session.commit()
-        await (UniMessage
-            .text(reply["you_are_looking_at"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
-    else:
-        pic = Path(targets.last_pic)
-        await (UniMessage
-            .text(reply["you_are_already_request"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
-
-#------
-# 学习内容
-#------
-learn_pic = on_alconna(
-    Alconna(
-        "学习",
-        Args["name?", Optional[int]]
-    )
-)
-learn_pic_service = plugin_service.create_subservice("learn_pic")
-
-@learn_pic.handle()
-@learn_pic_service.patch_handler()
-async def _(name: Optional[int]):
-    if name is None:
-        files = [
-            p async for p in LEARN_IMG_DIR.iterdir()
-            if await p.is_file()
-            ]
-        count = len(files)
-        await UniMessage.text(reply["count_tip"].format(count=count)).finish()
-    else:
-        img_png = LEARN_IMG_DIR / f"{name}.png"
-        img_jpg = LEARN_IMG_DIR / f"{name}.jpg"
-        img_path = None
-        if await img_png.exists():
-            img_path = img_png
-        if await img_jpg.exists():
-            img_path = img_jpg
-
-        if img_path is None:
-            await UniMessage.text(reply["file_not_found"].format(file=name)).finish()
-        else:
-            await (
-                UniMessage
-                .text(reply["you_are_looking_at"].format(file=name))
-                .image(path=str(img_path))
-                ).finish()
-
-everyday_learn = on_alconna(
-    Alconna(
-        "今日学习"
-    )
-)
-everyday_learn_service = plugin_service.create_subservice("everyday_learn")
-
-@everyday_learn.handle()
-@everyday_learn_service.patch_handler()
-async def _(event: MessageEvent, session: async_scoped_session):
-    targets = (await session.scalars(
-        select(LearnCount)
-        .where(LearnCount.user_id == str(event.user_id))
-    )).first()
-    if targets is None:
-        files = [
-            p async for p in LEARN_IMG_DIR.iterdir()
-            if await p.is_file()
-            ]
-        pic = random.choice(files)
-        new_records = LearnCount()
-        new_records.user_id = str(event.user_id)
-        new_records.last_request = datetime.now(BJ_TZ)
-        new_records.last_pic = str(pic)
-        session.add(new_records)
-        await session.commit()
-        await (UniMessage
-            .text(reply["you_are_looking_at"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
-    if targets.last_request.date() < datetime.now(BJ_TZ).date():
-        files = [
-            p async for p in LEARN_IMG_DIR.iterdir()
-            if p.is_file()
-            ]
-        pic = random.choice(files)
-        targets.last_pic = str(pic)
-        targets.last_request = datetime.now(BJ_TZ)
-        await session.commit()
-        await (UniMessage
-            .text(reply["you_are_looking_at"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
-    else:
-        pic = Path(targets.last_pic)
-        await (UniMessage
-            .text(reply["you_are_already_request"].format(file=pic.stem))
-            .image(path=str(pic))
-            ).finish()
+with contextlib.suppress(ImportError):
+    from . import unfinished
