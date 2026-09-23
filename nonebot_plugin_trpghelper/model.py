@@ -49,7 +49,10 @@ class Rule(Model):
     __tablename__ = "rule"
     id: Mapped[int] = mapped_column(INTEGER, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, index=True, unique=True)
-    aliases = relationship(RuleAlias, back_populates="rule")
+    aliases = relationship(
+        RuleAlias,
+        back_populates="rule",
+        passive_deletes=True)
     introduce: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 class LearnCount(Model):
