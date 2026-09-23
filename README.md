@@ -6,7 +6,7 @@
 
 <div align="center">
 
-# nonebot-plugin-boardgamehelper
+# nonebot-plugin-trpghelper
 
 _✨ NoneBot 跑团约车助手 ✨_
 
